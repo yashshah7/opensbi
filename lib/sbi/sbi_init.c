@@ -291,10 +291,21 @@ void __noreturn sbi_init(struct sbi_scratch *scratch)
 	bool coldboot			= FALSE;
 	u32 hartid			= current_hartid();
 	const struct sbi_platform *plat = sbi_platform_ptr(scratch);
+	unsigned long addr = 0x20000000;
+	unsigned long cmip;
 
 	if ((SBI_HARTMASK_MAX_BITS <= hartid) ||
-	    sbi_platform_hart_invalid(plat, hartid))
+	    sbi_platform_hart_invalid(plat, hartid)) {
+
+		do {
+			cmip = csr_read(CSR_MIP);
+		} while (!(cmip & MIP_MSIP));
+		csr_clear(CSR_MIP, MIP_MSIP);
+
+		csr_write(CSR_MEPC, addr);
+		__asm__ __volatile__("mret");
 		sbi_hart_hang();
+	}
 
 	if (atomic_xchg(&coldboot_lottery, 1) == 0)
 		coldboot = TRUE;
